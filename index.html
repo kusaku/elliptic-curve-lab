@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Explore elliptic curves over finite fields. Choose a curve, prime, base point and private scalar, then animate every step of Q = dG with exact modular arithmetic.">
+    <meta name="author" content="Kirill Arkhipenko">
+    <meta name="theme-color" content="#0d1117">
+    <title>Elliptic Curve Lab — Kirill Arkhipenko</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%2316302b'/%3E%3Ctext x='20' y='29' font-size='29' text-anchor='middle' fill='%2368e3ba'%3EE%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="styles.css">
+    <script src="math.js" defer></script>
+    <script src="app.js" defer></script>
+</head>
+<body>
+    <header class="app-header">
+        <div class="brand"><span class="brand-mark" aria-hidden="true">𝔼</span><h1>Elliptic Curve Lab</h1></div>
+        <button type="button" id="help-button" class="button secondary"><span aria-hidden="true">?</span> Theory &amp; guide</button>
+    </header>
+    <div class="app-layout">
+        <aside class="sidebar" aria-label="Experiment parameters">
+            <form id="parameters" novalidate>
+                <section class="control-section">
+                    <div class="section-heading"><span class="eyebrow">01 / The field</span><span class="tag">EXACT INTEGERS</span></div>
+                    <label for="preset">Start with an example</label>
+                    <select id="preset">
+                        <option value="classic">First steps · p = 17</option>
+                        <option value="subgroup">A smaller subgroup · p = 97</option>
+                        <option value="infinity">Return to infinity · p = 17</option>
+                        <option value="order-two">A point of order two · p = 17</option>
+                        <option value="larger">A denser field · p = 223</option>
+                        <option value="custom" disabled>Custom experiment</option>
+                    </select>
+                    <div class="input-row"><div><label for="prime">Prime p</label><input id="prime" name="p" type="text" inputmode="numeric" value="17" autocomplete="off" required></div><div class="field-explanation">Coordinates wrap around at <strong id="wrap-value">17</strong>.</div></div>
+                    <p class="hint">Prime numbers from 5 to 997, so every point can be drawn.</p>
+                </section>
+                <section class="control-section">
+                    <span class="eyebrow">02 / The curve</span>
+                    <label for="formula">Equation</label>
+                    <input id="formula" name="formula" type="text" value="y^2 = x^3 + 2x + 2" autocomplete="off" spellcheck="false">
+                    <p class="hint">Edit the equation or the coefficients below.</p>
+                    <div class="input-row"><div><label for="coefficient-a">Coefficient a</label><input id="coefficient-a" name="a" type="text" inputmode="text" value="2" autocomplete="off" required></div><div><label for="coefficient-b">Coefficient b</label><input id="coefficient-b" name="b" type="text" inputmode="text" value="2" autocomplete="off" required></div></div>
+                </section>
+                <section class="control-section">
+                    <span class="eyebrow">03 / The keys</span>
+                    <div class="label-row"><label for="base-x">Base point G</label><button type="button" id="pick-point" class="text-button">Find a point</button></div>
+                    <div class="input-row"><div><label class="small-label" for="base-x">x coordinate</label><input id="base-x" name="gx" type="text" inputmode="numeric" value="5" autocomplete="off" required></div><div><label class="small-label" for="base-y">y coordinate</label><input id="base-y" name="gy" type="text" inputmode="numeric" value="1" autocomplete="off" required></div></div>
+                    <p class="hint">Or click a curve point to make it G.</p>
+                    <label for="scalar">Private scalar d</label><input id="scalar" name="d" type="text" inputmode="numeric" value="7" autocomplete="off" required>
+                    <label for="method">Multiplication method</label><select id="method"><option value="repeated">Repeated addition · one G at a time</option><option value="binary">Double-and-add · read d in binary</option></select>
+                    <button type="submit" class="button primary apply-button">Build experiment <span aria-hidden="true">↗</span></button>
+                    <p id="parameter-error" class="error" role="alert" hidden></p>
+                    <p id="parameter-notice" class="hint" aria-live="polite"></p>
+                </section>
+            </form>
+            <footer class="sidebar-footer"><a href="https://kusaku.su">by kusaku</a></footer>
+        </aside>
+        <main>
+            <section class="experiment-heading" aria-label="Current experiment">
+                <div><span class="eyebrow">ELLIPTIC CURVES OVER Fₚ</span><h2 id="curve-equation">y² = x³ + 2x + 2 <span>mod 17</span></h2></div>
+                <div class="curve-stats"><div><span>Curve points</span><strong id="group-order">19</strong></div><div><span>Order of G</span><strong id="point-order">19</strong></div></div>
+            </section>
+            <section class="key-strip" aria-label="Key relationship">
+                <div><span class="eyebrow">PRIVATE SCALAR</span><strong id="private-value">d = 7</strong></div><span class="key-operator" aria-hidden="true">×</span><div><span class="eyebrow">PUBLIC BASE POINT</span><strong id="base-value">G = (5, 1)</strong></div><span class="key-operator" aria-hidden="true">=</span><div class="public-key"><span class="eyebrow">PUBLIC KEY · Q = dG</span><strong id="public-value">Q = (0, 6)</strong></div>
+            </section>
+            <p id="scalar-warning" class="experiment-note" hidden></p>
+            <div class="workspace">
+                <section class="plot-panel" aria-labelledby="plot-title">
+                    <div class="panel-heading"><div><span class="eyebrow">THE FINITE FIELD</span><h3 id="plot-title">Curve points &amp; calculation steps</h3></div><output id="hover-point" class="coordinate-readout">Click a point to set G</output></div>
+                    <div class="legend"><span><i class="legend-dot all-points"></i>Curve points</span><span><i class="legend-dot base-point"></i>G</span><span><i class="legend-dot current-point"></i>Result R</span><span><i class="legend-line"></i>Current step</span><span><i class="legend-line history-line"></i>Past steps (fading)</span><span id="helper-line-key" hidden><i class="legend-cross">+</i>Helper line samples</span><span id="reflection-key" hidden><i class="legend-dot intersection-point"></i>Third intersection T</span></div>
+                    <div id="plot-container" class="plot-container"><svg id="curve-plot" role="img" aria-labelledby="plot-svg-title plot-svg-desc"><title id="plot-svg-title">Elliptic curve over a finite field</title><desc id="plot-svg-desc">Each dot is an integer pair satisfying the curve equation. The arrow indicates the current addition, not a continuous path on the curve.</desc></svg><div id="point-tooltip" class="point-tooltip" hidden></div></div>
+                    <div class="plot-options"><label class="check-label"><input id="construction" type="checkbox" aria-describedby="construction-explanation" checked> Show helper line samples and T → R</label><div id="construction-explanation" class="construction-explanation" aria-live="polite"></div><span>Arrows connect operation inputs and results; intermediate positions are not curve points.</span></div>
+                    <div class="playback" aria-label="Step playback">
+                        <div class="playback-buttons"><button type="button" id="first-step" class="icon-button" aria-label="Go to start" title="Go to start">|←</button><button type="button" id="previous-step" class="icon-button" aria-label="Previous step" title="Previous step">←</button><button type="button" id="play" class="button primary" aria-label="Play steps">▶ Play</button><button type="button" id="next-step" class="icon-button" aria-label="Next step" title="Next step">→</button><button type="button" id="last-step" class="icon-button" aria-label="Go to final result" title="Go to final result">→|</button></div>
+                        <label class="speed-label" for="speed">Speed <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
+                        <label class="sr-only" for="step-slider">Selected calculation step</label><input type="range" id="step-slider" min="0" max="7" value="0"><output id="step-counter">0 / 7</output>
+                    </div>
+                </section>
+                <section class="calculation-panel" aria-labelledby="calculation-title">
+                    <div class="panel-heading"><div><span class="eyebrow" id="step-kind">START</span><h3 id="calculation-title">Inside the calculation</h3></div><span class="formula-help-hint">Hover, focus, or tap underlined formulas</span></div>
+                    <div id="calculation" aria-live="polite" aria-atomic="true"></div>
+                </section>
+            </div>
+            <section class="trace-panel" aria-labelledby="trace-title"><div class="panel-heading"><div><span class="eyebrow">THE COMPUTATION</span><h3 id="trace-title">Calculation history</h3></div><span id="method-summary" class="hint"></span></div><div id="trace-list" class="trace-list" aria-label="Calculation steps"></div></section>
+            <footer class="main-footer"><span>Prime p: 5–997 · Scalar d: up to 256 bits</span><a href="https://www.rfc-editor.org/rfc/rfc6090.html#section-3" target="_blank" rel="noopener noreferrer">Math reference ↗</a></footer>
+        </main>
+    </div>
+    <dialog id="theory-dialog" aria-labelledby="theory-title">
+        <div class="dialog-header"><div><span class="eyebrow">THEORY</span><h2 id="theory-title">Elliptic curve arithmetic</h2></div><button type="button" id="close-help" class="icon-button" aria-label="Close theory">✕</button></div>
+        <div class="theory-body">
+            <p class="lead">Choose a secret number d. Start from a public point G. Add G to itself d times, following a special rule. The point you finish on is Q, your public key.</p>
+            <nav class="theory-nav" aria-label="Theory topics"><a href="#theory-field">The field</a><a href="#theory-addition">Point addition</a><a href="#theory-example">Worked example</a><a href="#theory-keys">Keys &amp; security</a><a href="#theory-controls">Using the lab</a></nav>
+            <section id="theory-field"><h3>1. A grid of whole numbers</h3><p>The curve equation is <code>y² ≡ x³ + ax + b (mod p)</code>. You choose a, b, and a prime number p. Both coordinates are whole numbers from 0 to p − 1. A pair (x, y) is a curve point when both sides have the same remainder after division by p.</p><p>For p = 17 there are 17 × 17 possible coordinate pairs. Only 18 of them satisfy <code>y² ≡ x³ + 2x + 2</code>. Those are the dots in the default plot. They do not form a filled area, and joining them would invent a continuous curve that does not exist in this field.</p><p>For example, (5, 1) works: <code>1² = 1</code> and <code>5³ + 2·5 + 2 = 137 ≡ 1 (mod 17)</code>. The pair (5, 16) works too, because 16² leaves the same remainder as 1².</p><p>A clock is a useful analogy: 18 becomes 1 modulo 17, and −1 becomes 16. Calculations wrap around the boundaries. No floating-point approximations are used for the group arithmetic in this lab.</p><h4>Why must p be prime?</h4><p>For a prime p, every nonzero value has a multiplicative inverse. That makes division possible in the field. This short curve equation assumes p &gt; 3. The curve must also be nonsingular: <code>(4a³ + 27b²) mod p ≠ 0</code>. The lab checks both conditions.</p><p>There is an extra point called <strong>O, the point at infinity</strong>. It has no ordinary (x, y) coordinates. It is the identity for addition: P + O = P. Including O gives 19 group elements in the default example.</p></section>
+            <section id="theory-addition"><h3>2. Adding points is a defined operation</h3><p>Point addition does not mean adding the x coordinates and the y coordinates separately. It is a different rule, designed so that adding two curve points produces another curve point or O.</p><p>Over ordinary real numbers you can picture the rule by drawing a line through two points, finding its third intersection with the curve, and reflecting that intersection. When the two points are equal, use the tangent line. Over a finite field, we use the same algebraic formulas, with every calculation reduced modulo p.</p><div class="formula-block">P = (x₁, y₁), B = (x₂, y₂)<br><br>Different points:<br>λ = (y₂ − y₁) · (x₂ − x₁)⁻¹ mod p<br><br>Doubling P = B:<br>λ = (3x₁² + a) · (2y₁)⁻¹ mod p<br><br>Result R = P + B:<br>x₃ = (λ² − x₁ − x₂) mod p<br>y₃ = (λ(x₁ − x₃) − y₁) mod p</div><p>The superscript −1 means a <strong>modular inverse</strong>, not a decimal fraction. For instance, 2⁻¹ = 9 modulo 17 because 2 × 9 = 18 ≡ 1. Thus dividing by 2 is multiplying by 9, followed by reduction modulo 17.</p><p>The result stays on the curve because these formulas come from substituting the line equation into the cubic. Two known roots determine the third intersection. Reflection preserves the curve equation because y² = (−y)². The same polynomial identities work in the finite field.</p><h4>The special cases</h4><ul><li>P + O = P, and O + P = P.</li><li>The negative of (x, y) is (x, −y mod p). These two points add to O.</li><li>Doubling a point with y = 0 gives O. A vertical tangent has no finite third intersection.</li></ul><h4>What do the lines and arrows mean here?</h4><p>The purple + marks are samples of the helper line <code>y = λ(x − x₁) + y₁ mod p</code>. These samples need not lie on the curve. T is the third intersection with the curve; the result is R = −T. The dashed reflection mark relates those two points. The solid green arrow connects the input accumulator to the current result. Earlier arrows stay visible as thinner blue dashes, becoming grayer and more transparent as more steps are taken. Only steps up to the selected position are drawn, so stepping backward also rewinds the trail. Intermediate positions of the arrow are visual guides, not additional curve points.</p></section>
+            <section id="theory-example"><h3>3. A complete calculation: 2G</h3><p>Use a = 2, b = 2, p = 17 and G = (5, 1). To double G:</p><ol><li>The numerator is 3 × 5² + 2 = 77 ≡ 9.</li><li>The denominator is 2 × 1 = 2. Its inverse is 9, because 2 × 9 ≡ 1.</li><li>The modular slope is λ = 9 × 9 mod 17 = 13.</li><li>x₃ = 13² − 5 − 5 = 159 ≡ 6.</li><li>y₃ = 13 × (5 − 6) − 1 = −14 ≡ 3.</li></ol><p>Therefore <strong>2G = (6, 3)</strong>. Check: 3² mod 17 = 9 and (6³ + 2·6 + 2) mod 17 = 9. Another addition gives 3G = (10, 6). The default private scalar d = 7 gives Q = 7G = (0, 6).</p></section>
+            <section id="theory-keys"><h3>4. G is public; d is secret; Q is public</h3><p><strong>G is a chosen base point.</strong> A standard curve specifies a, b, p, G and the order n of G. Everyone using those same parameters starts from the same G. In this lab you can choose another curve point and discover its order.</p><p>The order n is the smallest positive number with nG = O. Repeatedly adding G visits its cyclic subgroup. Some choices of G reach every curve point; others reach only a subset. G is a generator of the subgroup it creates, not automatically of the entire curve group.</p><p>Scalars wrap modulo <strong>n, not p</strong>: (d + n)G = dG. The field prime p controls coordinate arithmetic; the point order n controls how scalar multiplication repeats. Real private keys are chosen in 1…n − 1, so the public key cannot be O.</p><h4>A shortcut: double-and-add</h4><p>Repeated addition performs d additions. Double-and-add reads the bits of d from left to right: double the current point for every new bit, then add G if that bit is 1. For 13 (binary 1101), the scalar goes 0 → 1 → 2 → 3 → 6 → 12 → 13. The result is the same, with only a number of operations proportional to the number of bits.</p><h4>Why is the reverse problem difficult?</h4><p>Given G and d, Q = dG is fast to compute. Given only G and Q, finding d is the elliptic-curve discrete logarithm problem. Group operations can be undone when their operands are known; what is hard is discovering the unknown scalar from the endpoint. In a well-chosen large group, no efficient classical general solution is known.</p><p>P-384 uses a field and subgroup order of about 384 bits and offers roughly 192 bits of classical security against generic attacks. The best general attacks are much faster than testing every possible scalar, but are still impractical at that scale.</p><p>A small or predictable private scalar destroys that protection. If d is among 1…255, an observer can compute those 255 public points and compare them with Q. A large-looking public key does not prove that its secret scalar was chosen with enough randomness.</p><p>Q = dG is a building block. ECDH uses it for key agreement; ECDSA uses a private/public pair for signatures. This visualizer does not implement either complete protocol. Its small fields and visible arithmetic are for learning.</p></section>
+            <section id="theory-controls"><h3>5. Using this lab</h3><ul><li>Edit a and b, or type an equation such as <code>y^2 = x^3 - 3x + 7</code>. The lab supports this short Weierstrass form, with integer coefficients; it does not execute expressions as JavaScript.</li><li>Choose a prime from 5 to 997. Coefficients are reduced modulo p.</li><li>Enter the coordinates of G, use Find a point, or click a plotted curve point. The coordinate fields also work with a keyboard.</li><li>Enter a non-negative d. Zero and multiples of the order are allowed to demonstrate O. Scalars can be up to 256 bits; repeated addition is limited to 512 steps.</li><li>Build the experiment. Play the animation, move one step at a time, drag the timeline, or select a row in the computation history.</li><li>Use the infinity and order-two presets to explore vertical lines, inverse points, and the return to O.</li></ul><p>Use Arrow Left and Arrow Right to step when you are not editing a field. Space plays or pauses. Escape closes this guide. Motion is reduced when your operating system requests it.</p></section>
+            <section class="theory-references"><h3>Further reading</h3><p><a href="https://www.rfc-editor.org/rfc/rfc6090.html#section-3" target="_blank" rel="noopener noreferrer">RFC 6090 · Fundamental Elliptic Curve Cryptography Algorithms</a><br><a href="https://www.secg.org/sec1-v2.pdf" target="_blank" rel="noopener noreferrer">SEC 1 · Elliptic Curve Cryptography</a><br><a href="https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final" target="_blank" rel="noopener noreferrer">NIST SP 800-57 · Key sizes and security strength</a></p></section>
+        </div>
+    </dialog>
+    <div id="formula-tooltip" class="formula-tooltip" role="tooltip" hidden>
+        <span class="tooltip-kicker">HOW THIS WAS CALCULATED</span>
+        <strong id="formula-tooltip-title"></strong>
+        <div id="formula-tooltip-body"></div>
+    </div>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-J8N1Q1GVVB"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-J8N1Q1GVVB');
+    </script>
+    <script type="text/javascript">
+        (function(m,e,t,r,i,k,a){
+            m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+            m[i].l=1*new Date();
+            for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+            k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+        })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=105986243', 'ym');
+        ym(105986243, 'init', {ssr:true, webvisor:true, clickmap:true, accurateTrackBounce:true, trackLinks:true});
+    </script>
+</body>
+</html>
